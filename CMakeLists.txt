@@ -8,6 +8,11 @@ project(FST)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-add_executable(fst main.cpp)
-
+add_subdirectory(fst)
 add_subdirectory(tests)
+
+add_executable(fst_main main.cpp)
+target_link_libraries(fst_main PUBLIC fst_lib)
+target_include_directories(fst_main PUBLIC
+  "${PROJECT_SOURCE_DIR}/fst"
+)
