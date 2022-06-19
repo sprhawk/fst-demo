@@ -10,15 +10,23 @@ TEST_GROUP(SimpleGroup) {
   Fst *fst = nullptr;
   void setup() {
     fst = new Fst();
-    cout << "Fst next_id: " << fst->get_next_id() << endl;
   }
   void teardown() {
     delete fst;
   }
 };
 
-TEST(SimpleGroup, InsertTest) {
+TEST(SimpleGroup, InsertMondayTest) {
   fst->insert("mon", 1);
   auto next_id = fst->get_next_id();
   CHECK_COMPARE(next_id, ==, 4);
 }
+
+TEST(SimpleGroup, InsertMoreDaysTest) {
+  fst->insert("mon", 1);  
+  fst->insert("tues", 2);
+  fst->insert("thurs", 4);
+  auto next_id = fst->get_next_id();
+  CHECK_COMPARE(next_id, ==, 9);
+}
+
