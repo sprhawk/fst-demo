@@ -18,16 +18,21 @@ Arc::Arc(node_key_t nodekey, node_value_t value)
 Arc::~Arc() {}
 
 void Arc::insert_state(std::string_view key, node_value_t value, Fst &fst) {
+  cout << "Arc(" << key[0] << ":" << value << ")--->" << endl;
+
   if (key.size() == 1) {
     // this is the last input, set final state.
     auto final = fst.get_final_state();
     cout << "Final State(" << final->get_id() << ")" << endl;
     this->set_state(final);
   } else {
-    auto state = make_shared<State>(fst.get_and_inc_next_id());
-    this->set_state(state);
+    if (nullptr == this->get_state()) {
+      auto state = make_shared<State>(fst.get_and_inc_next_id());
+      this->set_state(state);
+    }
+    
     auto substr = key.substr(1, key.size() - 1);
-    state->insert_arc(substr, value, fst);
+    this->get_state()->insert_arc(substr, value, fst);
   }
 }
 
@@ -70,9 +75,8 @@ void State::insert_arc(string_view key, node_value_t value, Fst &fst) {
         start = middle_pos + 1;
       }
 
-      if (start >= end) { // no found
+      if (start > end) { // no found
         auto begin = this->_arcs.begin();
-        cout << "Arc(" << innode << ":" << value << ")--->" << endl;
         auto arc = make_shared<Arc>(innode, value);
         arc->insert_state(key, 0, fst);
         if (innode <= node) {
@@ -92,7 +96,6 @@ void State::insert_arc(string_view key, node_value_t value, Fst &fst) {
     }
   } else { // _arcs.size() == 0
     auto innode = key[0];
-    cout << "Arc(" << innode << ":" << value << ")--->" << endl;
     auto arc = make_shared<Arc>(innode, value);
     arc->insert_state(key, 0, fst);
     this->_arcs.push_back(arc);

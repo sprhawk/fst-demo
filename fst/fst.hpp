@@ -27,6 +27,7 @@ namespace FstN {
     int get_value() { return this->_value; };
     void insert_state(std::string_view key, node_value_t value, Fst &fst);
     void set_state(shared_ptr<State> state) { _end_state = state; };
+    shared_ptr<State> get_state() { return _end_state; };
   };
 
    typedef uint64_t state_id_t;
