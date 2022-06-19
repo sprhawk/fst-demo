@@ -12,19 +12,24 @@ namespace FstN {
   class Fst;
  
   class Arc {
+    friend State;
   private:
     node_key_t _nodekey;
     node_value_t _value;
-
+    string_view _path;
     shared_ptr<State> _end_state;
+
+  protected:
+    void update_value_recursively(const node_value_t value);
   public:
-    Arc(node_key_t nodekey, node_value_t value);
+    Arc(node_key_t nodekey, node_value_t value, string_view path);
     Arc(Arc &arc);
     ~Arc();
 
   public:
     char get_node_key(){ return this->_nodekey; };
     int get_value() { return this->_value; };
+    void update_value(const node_value_t new_value) { this->_value = new_value; };
     shared_ptr<State> find_or_insert_state(const std::string_view key, const node_value_t value, Fst &fst);
     void set_state(const shared_ptr<State> state) { _end_state = state; };
     shared_ptr<State> get_state() { return _end_state; };
@@ -41,7 +46,8 @@ namespace FstN {
   private:
   protected:
     vector<shared_ptr<Arc>> _arcs; 
-    shared_ptr<Arc> find_or_insert_arc(const std::string_view key, const node_value_t value, const Fst &fst);
+    shared_ptr<Arc> find_or_insert_arc(const std::string_view key, const node_value_t value);
+    void update_value_recursively(const string_view key, const node_value_t value);
   public:
     State(state_id_t id);
     State(state_id_t id, node_key_t key);

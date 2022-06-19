@@ -8,14 +8,24 @@
 using namespace std;
 using namespace FstN;
 
-Arc::Arc(node_key_t nodekey, node_value_t value)
+Arc::Arc(node_key_t nodekey, node_value_t value, string_view path)
   : _nodekey(nodekey),
     _value(value),
+    _path(path),
     _end_state(nullptr) {
   
 }
 
 Arc::~Arc() {}
+
+void Arc::update_value_recursively(const node_value_t value) {
+  
+  if (this->get_value() > value && nullptr != this->get_state()) {
+    const auto rem = this->get_value() - value;
+    this->get_state()->update_value_recursively(_path, rem);
+    this->update_value(value);
+  }
+}
 
 shared_ptr<State> Arc::find_or_insert_state(const std::string_view key, const node_value_t value, Fst &fst) {
   cout << "Arc(" << key[0] << ":" << value << ")--->" << endl;
@@ -67,7 +77,11 @@ State::State(state_id_t id, bool is_final)
     _key('0'), // for final state actually
     _is_final(is_final){};
 
-shared_ptr<Arc> State::find_or_insert_arc(const string_view key, const node_value_t value, const Fst &fst) {
+void State::update_value_recursively(const string_view key, const node_value_t value) {
+  auto arc = find_or_insert_arc(key, value);
+  arc->update_value_recursively(value);
+}
+shared_ptr<Arc> State::find_or_insert_arc(const string_view key, const node_value_t value) {
   assert(key.size() > 0);
   const auto innode = key[0];
 
@@ -85,6 +99,7 @@ shared_ptr<Arc> State::find_or_insert_arc(const string_view key, const node_valu
 
       if (innode == mid_key) {
         // follow this arc
+        mid_arc->update_value_recursively(value);
         return mid_arc;
       } else if (innode < mid_key) {
         end = middle_pos;
@@ -95,7 +110,7 @@ shared_ptr<Arc> State::find_or_insert_arc(const string_view key, const node_valu
       // need to handle 'end == middle_pos'
       if (start > end) { // no found
         auto begin = this->_arcs.begin();
-        auto arc = make_shared<Arc>(innode, value);
+        auto arc = make_shared<Arc>(innode, value, key);
         if (innode <= mid_key) {
           if (end == 0) {
             this->_arcs.insert(begin, arc);
@@ -111,7 +126,7 @@ shared_ptr<Arc> State::find_or_insert_arc(const string_view key, const node_valu
     }
   } else { // _arcs.size() == 0
     auto innode = key[0];
-    auto arc = make_shared<Arc>(innode, value);
+    auto arc = make_shared<Arc>(innode, value, key);
     this->_arcs.push_back(arc);
     return arc;
     
@@ -135,7 +150,7 @@ void Fst::insert(const string_view key, const node_value_t value) {
   node_key_t next_value = value;
 
   while (subkey.size() > 0) {
-    arc = state->find_or_insert_arc(subkey, next_value, *this);
+    arc = state->find_or_insert_arc(subkey, next_value);
     state = arc->find_or_insert_state(subkey, next_value, *this);
     if (next_value > arc->get_value()) {
       next_value = next_value - arc->get_value();
@@ -200,7 +215,7 @@ shared_ptr<State> Fst::find_or_insert_shared_state(const string_view key,
   }
 
   assert(nullptr != start_state);
-  arc = start_state->find_or_insert_arc(key, value, *this);
+  arc = start_state->find_or_insert_arc(key, value);
   return start_state;
 
 }
