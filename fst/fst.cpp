@@ -66,17 +66,25 @@ void State::insert_arc(string_view key, node_value_t value, Fst &fst) {
         break;
       } else if (innode < node) {
         end = middle_pos;
-      } else {
+      } else { // innode > node
         start = middle_pos + 1;
       }
 
-      assert(start <= end);
-      if (start == end) { // no found
+      if (start >= end) { // no found
         auto begin = this->_arcs.begin();
         cout << "Arc(" << innode << ":" << value << ")--->" << endl;
         auto arc = make_shared<Arc>(innode, value);
         arc->insert_state(key, 0, fst);
-        this->_arcs.insert(begin + start + 1, arc);
+        if (innode <= node) {
+          if (end == 0) {
+            this->_arcs.insert(begin, arc);
+          } else {
+            this->_arcs.insert(begin + end - 1, arc);
+          }
+        } else {
+          this->_arcs.insert(begin + end + 1, arc);
+        }
+
         break;
       } else {
         continue; // next search
