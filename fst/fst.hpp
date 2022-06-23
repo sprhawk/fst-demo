@@ -10,6 +10,7 @@ namespace FstN {
 
   class State;
   class Fst;
+  class SearchResult;
  
   class Arc {
     friend State;
@@ -55,6 +56,8 @@ namespace FstN {
     bool is_final() { return _is_final; }
     state_id_t get_id(){return _id;};
     node_key_t get_key() { return _key; };
+
+    void search_key(const string_view key, vector<shared_ptr<SearchResult>> &results, string parent_key = "", node_value_t parent_value = 0);
   };
 
   class Fst {
@@ -80,5 +83,19 @@ namespace FstN {
     shared_ptr<State> get_final_state() { return _final_state; };
     state_id_t get_next_id();
     state_id_t get_and_inc_next_id();
+
+    void search(const string_view search_key, vector<shared_ptr<SearchResult>>& results);
+  };
+
+  class SearchResult {
+  private:
+    string _key;
+    node_value_t _value;
+
+  public:
+    SearchResult(const string key, const node_value_t value);
+
+    string get_key() { return _key; };
+    node_value_t get_value() { return _value; };
   };
 } // namespace Fst

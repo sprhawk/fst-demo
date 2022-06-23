@@ -8,6 +8,8 @@
 using namespace std;
 using namespace FstN;
 
+#define END_OF_STRING '\0'
+
 Arc::Arc(node_key_t nodekey, node_value_t value, string_view path)
   : _nodekey(nodekey),
     _value(value),
@@ -137,17 +139,100 @@ shared_ptr<Arc> State::find_or_insert_arc(const string_view key, const node_valu
   }
 }
 
+// recursively calls
+void State::search_key(const string_view key,
+                       vector<shared_ptr<SearchResult>> &results,
+                       string parent_key,
+                       node_value_t parent_value) {
+  if (key.size() > 0 && this->_arcs.size() > 0) {
+    // bookkeeping candidates states to call recursively
+    vector<shared_ptr<Arc>> next_arcs;
+    node_key_t next_non_star_char = END_OF_STRING;
+    size_t next_non_star_char_index = 0;
+    bool wild_search;
+    const auto innode = key[0];
+    if ('*' == innode) {
+      wild_search = true;
+      auto index = 0;
+      while (index < key.size()) {
+        if ('*' != key[index]) {
+          next_non_star_char_index = index;
+          next_non_star_char = key[index];
+          
+        }
+      }
+    } else {
+      wild_search = false;
+    }
+
+    // if this is a wild search, bookkeeps all the children states
+    if (wild_search) {
+      for (auto i = 0; i < this->_arcs.size(); i++) {
+        auto arc = this->_arcs[i];
+        next_arcs.push_back(arc);
+      }
+    } else {
+      // if this is not a wild search, just do a binary search
+      // do a binary search
+      size_t start = 0;
+      size_t end = _arcs.size() - 1;
+      while(true) {
+        const auto middle_pos = start + (end - start) / 2;
+        const auto &mid_arc = _arcs[middle_pos];
+        const auto mid_key = mid_arc->get_node_key();
+
+        if (innode == mid_key) {
+          next_arcs.push_back(mid_arc);
+          break;
+        } else if (innode < mid_key) {
+          if (middle_pos > 0) {
+            end = middle_pos - 1;
+          } else { // this is a flag that indicate finishing search
+            end = middle_pos;
+          }
+        } else { // innode > node
+          start = middle_pos + 1;
+        }
+
+        // need to handle 'end == middle_pos'
+        if (start > end || end == middle_pos) { // no found
+          break;
+        }
+      }
+    }
+
+    for (auto i = 0; i < next_arcs.size(); i++) {
+      auto arc = next_arcs[i];
+      if (END_OF_STRING != next_non_star_char
+          && arc->get_node_key() == next_non_star_char) {
+        // if this arc has the non_star_char, it will move without this * prefix
+        const string_view subkey = key.substr(next_non_star_char_index, key.size() - next_non_star_char_index);
+        arc->get_state()->search_key(subkey, results, parent_key + arc->get_node_key(), parent_value + arc->get_value());
+      } else {
+        const string_view subkey = key.substr(1, key.size() - 1);
+        arc->get_state()->search_key(subkey, results, parent_key + arc->get_node_key(), parent_value + arc->get_value());
+      }
+    }
+  } else { // if(key.size() > 0 && _arcs.size() > 0)
+    // if here is end of search
+    if (is_final()) {
+      auto result = make_shared<SearchResult>(parent_key, parent_value);
+      results.push_back(result);
+    }
+  }
+}
+
 Fst::Fst()
   : _next_id(2) {
   _root_state = make_shared<State>(0);
-  _final_state = make_shared<State>(1);
+  _final_state = make_shared<State>(1, true);
 };
 
 Fst::~Fst() {};
 
 void Fst::insert(const string_view key, const node_value_t value) {
   assert(key.size() > 0);
-  
+  cout << "inserting: \"" << key << "\" value: " << value << endl;
   shared_ptr<Arc> arc = nullptr;
   shared_ptr<State> state = _root_state;
   string_view subkey = key;
@@ -233,3 +318,14 @@ state_id_t Fst::get_and_inc_next_id() {
   inc_next_id();
   return next_id;
 }
+
+void Fst::search(const string_view search_key, vector<shared_ptr<SearchResult>> &results) {
+  cout << "searching key: " << search_key << endl;
+  string_view subkey = search_key;
+  _root_state->search_key(search_key, results);
+}
+
+SearchResult::SearchResult(const string key, const node_value_t value)
+  : _key(key),
+    _value(value)
+{}
