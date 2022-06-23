@@ -154,7 +154,7 @@ void State::search_key(const string_view key,
     if ('*' == innode) {
       wild_search = true;
       auto index = 0;
-      while (index < key.size()) {
+      while (index < key.size() - 1) {
         if ('*' != key[index]) {
           next_non_star_char_index = index;
           next_non_star_char = key[index];
@@ -209,8 +209,22 @@ void State::search_key(const string_view key,
         const string_view subkey = key.substr(next_non_star_char_index, key.size() - next_non_star_char_index);
         arc->get_state()->search_key(subkey, results, parent_key + arc->get_node_key(), parent_value + arc->get_value());
       } else {
-        const string_view subkey = key.substr(1, key.size() - 1);
-        arc->get_state()->search_key(subkey, results, parent_key + arc->get_node_key(), parent_value + arc->get_value());
+        if (wild_search) {
+          // if this is a wild_search and not a final state, contiunue search
+          if (is_final()) {
+            auto result = make_shared<SearchResult>(parent_key, parent_value);
+            results.push_back(result);
+          } else {
+            arc->get_state()->search_key(key, results,
+                                         parent_key + arc->get_node_key(),
+                                         parent_value + arc->get_value());
+          }
+        } else {
+          const string_view subkey = key.substr(1, key.size() - 1);
+          arc->get_state()->search_key(subkey, results,
+                                       parent_key + arc->get_node_key(),
+                                       parent_value + arc->get_value());
+        }
       }
     }
   } else { // if(key.size() > 0 && _arcs.size() > 0)

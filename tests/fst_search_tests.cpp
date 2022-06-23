@@ -38,3 +38,14 @@ TEST(SearchGroup, ExactSearch) {
   auto monday = results[0];
   CHECK_COMPARE(monday->get_key().compare("monday"), ==, 0);
 }
+
+TEST(SearchGroup, WildSearch) {
+  vector<shared_ptr<SearchResult>> results;
+
+  results.clear();
+  fst->search("mon*", results);
+  CHECK_COMPARE(results.size(), ==, 1);
+
+  auto monday = results[0];
+  CHECK_COMPARE(monday->get_key().compare("monday"), ==, 0);
+}
