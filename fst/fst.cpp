@@ -102,13 +102,17 @@ shared_ptr<Arc> State::find_or_insert_arc(const string_view key, const node_valu
         mid_arc->update_value_recursively(value);
         return mid_arc;
       } else if (innode < mid_key) {
-        end = middle_pos;
+        if (middle_pos > 0) {
+          end = middle_pos - 1;
+        } else { // this is a flag that indicate finishing search
+          end = middle_pos;
+        }
       } else { // innode > node
         start = middle_pos + 1;
       }
 
       // need to handle 'end == middle_pos'
-      if (start > end) { // no found
+      if (start > end || end == middle_pos) { // no found
         auto begin = this->_arcs.begin();
         auto arc = make_shared<Arc>(innode, value, key);
         if (innode <= mid_key) {
