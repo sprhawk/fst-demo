@@ -139,6 +139,33 @@ shared_ptr<Arc> State::find_or_insert_arc(const string_view key, const node_valu
   }
 }
 
+const shared_ptr<State> State::find_next_state(const node_key_t key) {
+  size_t start = 0;
+  size_t end = this->_arcs.size() - 1;
+  const auto state_key = key;
+
+  while(true) {
+      const auto middle_pos = start + (end - start) / 2;
+      const auto &mid_arc = this->_arcs[middle_pos];
+      const auto mid_key = mid_arc->get_node_key();
+
+      if (mid_key == state_key) {
+        return mid_arc->get_state();
+      } else if (mid_key < state_key) {
+        if (middle_pos > 0) {
+          end = middle_pos - 1;
+        } else { // this is a flag that indicate finishing search
+          end = middle_pos;
+        }
+      } else { // state_key > key
+        start = middle_pos + 1;
+      }
+      if (start > end || end == middle_pos) { // no found
+        return nullptr;
+      }
+    } // while()
+}
+
 // recursively calls
 void State::search_key(const string_view key,
                        vector<shared_ptr<SearchResult>> &results,
@@ -250,7 +277,7 @@ void Fst::insert(const string_view key, const node_value_t value) {
   shared_ptr<Arc> arc = nullptr;
   shared_ptr<State> state = _root_state;
   string_view subkey = key;
-  node_key_t next_value = value;
+  node_value_t next_value = value;
 
   while (subkey.size() > 0) {
     arc = state->find_or_insert_arc(subkey, next_value);
@@ -289,8 +316,14 @@ shared_ptr<State> Fst::find_or_insert_shared_state(const string_view key,
       const auto mid_key = mid_state->get_key();
 
       if (mid_key == state_key) {
-        start_state = mid_state;
-        break;
+        // only find the same state that follow same
+        // state(key[0] -- arc --> next_state(key[1] or final)
+        auto next_key = key.size() > 1 ? key[1] : '\0';
+        const auto end_state = mid_state->find_next_state(next_key);
+        if (end_state != nullptr) {
+          start_state = mid_state;
+          break;
+        }
       } else if (mid_key < state_key) {
         if (middle_pos > 0) {
           end = middle_pos - 1;
@@ -300,7 +333,11 @@ shared_ptr<State> Fst::find_or_insert_shared_state(const string_view key,
       } else { // state_key > key
         start = middle_pos + 1;
       }
-      if (start > end || end == middle_pos) { // no found
+      // when mid_key == state_key, and execution goes here
+      // then there is no sharable state exists, then create
+      // new start_state
+      if ((mid_key == state_key) ||
+          (start > end || end == middle_pos)) { // no found
         start_state = make_shared<State>(get_and_inc_next_id(), state_key);
         auto begin = this->_intermediate_states.begin();
         if (state_key <= mid_key) {

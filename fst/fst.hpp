@@ -57,6 +57,7 @@ namespace FstN {
     state_id_t get_id(){return _id;};
     node_key_t get_key() { return _key; };
 
+    const shared_ptr<State> find_next_state(const node_key_t key);
     void search_key(const string_view key, vector<shared_ptr<SearchResult>> &results, string parent_key = "", node_value_t parent_value = 0);
   };
 
