@@ -67,6 +67,9 @@ namespace FstN {
     shared_ptr<State> _root_state;
     shared_ptr<State> _final_state;
     state_id_t _next_id;
+    // _intermediate_states may contain multiple state with same state_key
+    // so even find a middle pos has the target state_key, still need find
+    // all states has same state_key.For example: 'dddmnnooy'
     vector<shared_ptr<State>> _intermediate_states;
   private:
     void inc_next_id() { _next_id++; };

@@ -44,11 +44,9 @@ shared_ptr<State> Arc::find_or_insert_state(const std::string_view key, const no
       return this->get_state();
     }
 
-    const auto substr = key.substr(1, key.size() - 1);
-    shared_ptr<State> end_state = nullptr;
     shared_ptr<Arc> arc;
     
-    const auto state = fst.find_or_insert_shared_state(substr, value, arc);
+    const auto state = fst.find_or_insert_shared_state(key, value, arc);
     this->set_state(state);
 
     // if arc is returned, then there is a shared state
@@ -151,13 +149,13 @@ const shared_ptr<State> State::find_next_state(const node_key_t key) {
 
       if (mid_key == state_key) {
         return mid_arc->get_state();
-      } else if (mid_key < state_key) {
+      } else if (mid_key > state_key) {
         if (middle_pos > 0) {
           end = middle_pos - 1;
         } else { // this is a flag that indicate finishing search
           end = middle_pos;
         }
-      } else { // state_key > key
+      } else { // state_key < key
         start = middle_pos + 1;
       }
       if (start > end || end == middle_pos) { // no found
@@ -310,44 +308,97 @@ shared_ptr<State> Fst::find_or_insert_shared_state(const string_view key,
     size_t start = 0;
     size_t end = _intermediate_states.size() - 1;
     const auto state_key = key[0];
+
     while(true) {
       const auto middle_pos = start + (end - start) / 2;
-      const auto &mid_state = _intermediate_states[middle_pos];
+      auto &mid_state = _intermediate_states[middle_pos];
+      // mid_key will be kept during insertion, should not be changed.
       const auto mid_key = mid_state->get_key();
 
       if (mid_key == state_key) {
         // only find the same state that follow same
         // state(key[0] -- arc --> next_state(key[1] or final)
-        auto next_key = key.size() > 1 ? key[1] : '\0';
-        const auto end_state = mid_state->find_next_state(next_key);
-        if (end_state != nullptr) {
-          start_state = mid_state;
-          break;
+        const auto next_key = key.size() > 1 ? key[1] : '\0';
+        shared_ptr<State> end_state;
+        auto index = middle_pos;
+
+        // backward search for states with same state_key
+        do {
+          end_state = mid_state->find_next_state(next_key);
+          if (end_state != nullptr) {
+            // found a shared state ( same start to end state )
+            start_state = mid_state;
+            break;
+          }
+          if (index == 0) {
+            break;
+          }
+          index--;
+          mid_state = _intermediate_states[index];
+
+        }while(mid_state->get_key() == state_key);
+
+        // not found state in backward search
+        if(nullptr == end_state) {
+          // then do a forward search after middle_pos
+          for(auto index = middle_pos + 1; index < _intermediate_states.size(); index ++) {
+            auto &mid_state = _intermediate_states[index];
+            if (mid_state->get_key() != state_key) {
+              // finishes forward search
+              break;
+            }
+
+            end_state = mid_state->find_next_state(next_key);
+            if (end_state != nullptr) {
+              // found a shared state
+              start_state = mid_state;
+              break;
+            }
+          }
         }
-      } else if (mid_key < state_key) {
+
+      } else if (mid_key > state_key) {
         if (middle_pos > 0) {
           end = middle_pos - 1;
         } else { // this is a flag that indicate finishing search
           end = middle_pos;
         }
-      } else { // state_key > key
+      } else { // state_key < key
         start = middle_pos + 1;
       }
-      // when mid_key == state_key, and execution goes here
-      // then there is no sharable state exists, then create
-      // new start_state
-      if ((mid_key == state_key) ||
-          (start > end || end == middle_pos)) { // no found
+      // when start_state is nullptr and mid_key == state_key execution goes here
+      // already found shared state
+      if (nullptr != start_state) {
+        break;
+      }
+      // then there is no sharable state exists, then create a new start_state
+      if ((nullptr == start_state && mid_key == state_key) ||
+          (start > end || end == middle_pos)) { // no sharable state found
         start_state = make_shared<State>(get_and_inc_next_id(), state_key);
         auto begin = this->_intermediate_states.begin();
-        if (state_key <= mid_key) {
-          if (end == 0) {
-            this->_intermediate_states.insert(begin, start_state);
-          } else {
-            this->_intermediate_states.insert(begin + end - 1, start_state);
+
+        if (state_key == mid_key) {
+          this->_intermediate_states.insert(begin + middle_pos, start_state);
+        } else if (state_key < mid_key) {
+          auto insertion_pos = middle_pos;
+          while (insertion_pos > 0) {
+            auto prev = this->_intermediate_states[insertion_pos - 1];
+            if (prev->get_key() != mid_key) {
+              break;
+            }
+            insertion_pos--;
           }
-        } else {
-          this->_intermediate_states.insert(begin + end + 1, start_state);
+          this->_intermediate_states.insert(begin + insertion_pos, start_state);
+        } else { // state_key > mid_key
+          auto insertion_pos = middle_pos + 1;
+          while (insertion_pos < this->_intermediate_states.size()) {
+            auto next = this->_intermediate_states[insertion_pos + 1];
+            if (next->get_key() != mid_key) {
+              break;
+            }
+            insertion_pos ++;
+          }
+          this->_intermediate_states.insert(begin + insertion_pos, start_state);
         }
         break;
       }
@@ -355,7 +406,8 @@ shared_ptr<State> Fst::find_or_insert_shared_state(const string_view key,
   }
 
   assert(nullptr != start_state);
-  arc = start_state->find_or_insert_arc(key, value);
+  // const auto subkey = key.substr(1, key.size() - 1);
+  // arc = start_state->find_or_insert_arc(subkey, value);
   return start_state;
 
 }
